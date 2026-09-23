@@ -33,7 +33,7 @@ spec:
         tier: prod
       containers:
         - name: console
-          image: ghcr.io/OWNER/oidc-console:edge   # ArgoCD Image Updaterが自動更新
+          image: ghcr.io/infra-reel/oidc-console:edge   # ArgoCD Image Updaterが自動更新
           ports:
             - containerPort: 3000
           command:
