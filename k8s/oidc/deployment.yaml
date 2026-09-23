@@ -11,7 +11,7 @@ metadata:
   namespace: oidc
 spec:
   accessModes: ["ReadWriteMany"]
-  storageClassName: nfs-client   # 既存のNFS StorageClass名に合わせて変更してください
+  storageClassName: nfs-pvc
   resources:
     requests:
       storage: 2Gi
@@ -47,7 +47,7 @@ spec:
     spec:
       # 「node worker / tier: prod」に展開する指定
       nodeSelector:
-        node-role.kubernetes.io/worker: "true"
+        role: worker
         tier: prod
       containers:
         - name: oidc-server
