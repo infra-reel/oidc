@@ -29,11 +29,11 @@ spec:
           {{- end -}}
     spec:
       nodeSelector:
-        node-role.kubernetes.io/worker: "true"
+        role: worker
         tier: prod
       containers:
         - name: console
-          image: ghcr.io/infra-reel/oidc-console:edge   # ArgoCD Image Updaterが自動更新
+          image: ghcr.io/infra-reel/oidc-console:latest   # ArgoCD Image Updaterが自動更新
           ports:
             - containerPort: 3000
           command:
