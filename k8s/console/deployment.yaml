@@ -29,7 +29,7 @@ spec:
           {{- end -}}
     spec:
       nodeSelector:
-        role: worker
+        node-role.kubernetes.io/worker: "true"
         tier: prod
       containers:
         - name: console
