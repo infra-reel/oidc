@@ -51,7 +51,7 @@ spec:
         tier: prod
       containers:
         - name: oidc-server
-          image: ghcr.io/OWNER/oidc-server:edge   # ArgoCD Image Updaterが自動更新
+          image: ghcr.io/infra-reel/oidc-server:edge   # ArgoCD Image Updaterが自動更新
           ports:
             - containerPort: 5556
           envFrom:
