@@ -1,3 +1,4 @@
+#二つ別々で分けてね
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
