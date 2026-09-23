@@ -1,0 +1,26 @@
+issuer: https://oidc.reeldev.jp
+
+storage:
+  type: sqlite3
+  config:
+    # k8sのPVC(NFS)をマウントするパスと一致させる
+    file: /var/dex/data/dex.db
+
+web:
+  http: 0.0.0.0:5556
+
+oauth2:
+  skipApprovalScreen: true
+
+# reeldevの各サービスをOIDCクライアントとして登録する場所。
+# secretEnvはVault Agent Injectorが展開する環境変数名を指定する。
+staticClients:
+  - id: reeldev-example-app
+    name: "Example App"
+    secretEnv: EXAMPLE_APP_CLIENT_SECRET
+    redirectURIs:
+      - "https://example.reeldev.jp/callback"
+
+# 認証方法(社内パスワードDB / 外部IdP連携等)は用途が固まり次第ここに追加する。
+# 管理画面(console)のDiscordログインとは独立した設定。
+connectors: []

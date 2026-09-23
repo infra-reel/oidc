@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>reeldev console</title>
+<style>
+  :root { --bg:#111; --fg:#eee; --accent:#5865f2; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  nav { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; }
+  .menu-btn { background:none; border:none; color:var(--fg); font-size:22px; cursor:pointer; }
+  main { padding:16px; }
+  footer { padding:16px; opacity:.6; font-size:12px; }
+
+  /* 右からスライドインするドロワー */
+  #drawer {
+    position:fixed; top:0; right:0; height:100%; width:70%; max-width:280px;
+    background:#1b1b1b; transform:translateX(100%); transition:transform .25s ease;
+    padding:24px 16px; z-index:10;
+  }
+  #drawer.open { transform:translateX(0); }
+  #overlay {
+    position:fixed; inset:0; background:rgba(0,0,0,.5); opacity:0; pointer-events:none;
+    transition:opacity .25s ease; z-index:9;
+  }
+  #overlay.open { opacity:1; pointer-events:auto; }
+  #drawer a { display:block; color:var(--fg); text-decoration:none; padding:10px 0; }
+</style>
+</head>
+<body>
+  <nav>
+    <strong>reeldev</strong>
+    <button class="menu-btn" id="menuBtn" aria-label="メニュー">☰</button>
+  </nav>
+
+  <div id="overlay"></div>
+  <div id="drawer">
+    <a href="/">お知らせ</a>
+    <a href="/#links">リンク</a>
+    <a href="/api/auth/login">Discordでログイン</a>
+  </div>
+
+  <main id="app">
+    <p>Loading...</p>
+  </main>
+
+  <footer>© reel hosiduki 2026 all rights reserved</footer>
+
+  <script>
+    const menuBtn = document.getElementById("menuBtn");
+    const drawer = document.getElementById("drawer");
+    const overlay = document.getElementById("overlay");
+    function toggle(open) {
+      drawer.classList.toggle("open", open);
+      overlay.classList.toggle("open", open);
+    }
+    menuBtn.addEventListener("click", () => toggle(!drawer.classList.contains("open")));
+    overlay.addEventListener("click", () => toggle(false));
+
+    // 最低限の疎通確認。実際の一覧表示・編集UIは別途実装する。
+    fetch("/api/auth/me").then(r => r.json()).then(({ user, isAdmin }) => {
+      document.getElementById("app").innerHTML = user
+        ? `<p>${user.username} としてログイン中 ${isAdmin ? "(管理人)" : ""}</p>`
+        : `<p><a href="/api/auth/login" style="color:var(--accent)">Discordでログイン</a></p>`;
+    });
+  </script>
+</body>
+</html>
