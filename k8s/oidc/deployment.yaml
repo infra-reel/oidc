@@ -47,7 +47,7 @@ spec:
     spec:
       # 「node worker / tier: prod」に展開する指定
       nodeSelector:
-        role: worker
+        node-role.kubernetes.io/worker: "true"
         tier: prod
       containers:
         - name: oidc-server
