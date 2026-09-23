@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oidc-console
+  namespace: oidc
+  labels:
+    app: oidc-console
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: oidc-console
+  template:
+    metadata:
+      labels:
+        app: oidc-console
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "oidc-console"
+        vault.hashicorp.com/agent-inject-secret-config.env: "secret/data/oidc/console"
+        vault.hashicorp.com/agent-inject-template-config.env: |
+          {{- with secret "secret/data/oidc/console" -}}
+          DISCORD_CLIENT_ID={{ .Data.data.discord_client_id }}
+          DISCORD_CLIENT_SECRET={{ .Data.data.discord_client_secret }}
+          # 管理人として許可するDiscordユーザーID(カンマ区切り)。
+          # ここに含まれないユーザーはDiscord認証を通っても管理画面を操作できない。
+          ADMIN_DISCORD_IDS={{ .Data.data.admin_discord_ids }}
+          SESSION_SECRET={{ .Data.data.session_secret }}
+          {{- end -}}
+    spec:
+      nodeSelector:
+        role: worker
+        tier: prod
+      containers:
+        - name: console
+          image: ghcr.io/OWNER/oidc-console:edge   # ArgoCD Image Updaterが自動更新
+          ports:
+            - containerPort: 3000
+          command:
+            - sh
+            - -c
+            - |
+              set -a
+              [ -f /vault/secrets/config.env ] && . /vault/secrets/config.env
+              set +a
+              exec node server.js
+          readinessProbe:
+            httpGet: { path: /api/health, port: 3000 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oidc-console
+  namespace: oidc
+spec:
+  selector:
+    app: oidc-console
+  ports:
+    - port: 80
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: oidc-console
+  namespace: oidc
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts: ["console.reeldev.jp"]
+      secretName: oidc-console-tls
+  rules:
+    - host: console.reeldev.jp
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: oidc-console
+                port: { number: 80 }

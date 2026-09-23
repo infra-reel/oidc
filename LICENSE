@@ -1,0 +1,23 @@
+This repository contains two categories of content under different terms.
+
+## 1. Dex-derived code
+
+Code under `vendor/dex/` is derived from Dex (https://github.com/dexidp/dex),
+licensed under the Apache License, Version 2.0. The full text of that license
+is included at `vendor/dex/LICENSE`. Any files copied or modified from Dex
+retain their original Apache 2.0 copyright notices and are marked with a
+comment describing what was changed, per Apache 2.0 Section 4(b).
+
+## 2. All other content
+
+All other content in this repository — including but not limited to the
+`console/` admin panel, `k8s/` manifests, `.github/workflows/` CI
+configuration, and documentation — is:
+
+Copyright (c) reel hosiduki 2026. All rights reserved.
+
+No license is granted for reuse, redistribution, modification, or
+derivative works of this original content without prior written permission
+from the copyright holder. Viewing the source is permitted; copying,
+forking for redistribution, or commercial reuse is not, unless explicitly
+authorized.

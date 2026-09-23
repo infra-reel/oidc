@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: oidc
+---
+# NFS上にDexの永続データ(署名鍵・リフレッシュトークン等のstorage backend)を置く
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: oidc-data
+  namespace: oidc
+spec:
+  accessModes: ["ReadWriteMany"]
+  storageClassName: nfs-client   # 既存のNFS StorageClass名に合わせて変更してください
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: oidc-server
+  namespace: oidc
+  labels:
+    app: oidc-server
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: oidc-server
+  template:
+    metadata:
+      labels:
+        app: oidc-server
+      annotations:
+        # Vault Agent Injector: Pod起動時にVaultからシークレットを取得し
+        # /vault/secrets/ 配下にファイルとして展開する
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "oidc-server"
+        vault.hashicorp.com/agent-inject-secret-config.env: "secret/data/oidc/server"
+        vault.hashicorp.com/agent-inject-template-config.env: |
+          {{- with secret "secret/data/oidc/server" -}}
+          DISCORD_CLIENT_ID={{ .Data.data.discord_client_id }}
+          DISCORD_CLIENT_SECRET={{ .Data.data.discord_client_secret }}
+          OIDC_SIGNING_KEY={{ .Data.data.signing_key }}
+          {{- end -}}
+    spec:
+      # 「node worker / tier: prod」に展開する指定
+      nodeSelector:
+        role: worker
+        tier: prod
+      containers:
+        - name: oidc-server
+          image: ghcr.io/OWNER/oidc-server:edge   # ArgoCD Image Updaterが自動更新
+          ports:
+            - containerPort: 5556
+          envFrom:
+            - secretRef:
+                name: oidc-server-static-env
+                optional: true
+          command:
+            - sh
+            - -c
+            - |
+              set -a
+              [ -f /vault/secrets/config.env ] && . /vault/secrets/config.env
+              set +a
+              exec /usr/local/bin/dex serve /etc/dex/cfg/config.yaml
+          volumeMounts:
+            - name: data
+              mountPath: /var/dex/data
+          readinessProbe:
+            httpGet: { path: /healthz, port: 5556 }
+          livenessProbe:
+            httpGet: { path: /healthz, port: 5556 }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: oidc-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: oidc-server
+  namespace: oidc
+spec:
+  selector:
+    app: oidc-server
+  ports:
+    - port: 80
+      targetPort: 5556
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: oidc-server
+  namespace: oidc
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts: ["oidc.reeldev.jp"]
+      secretName: oidc-tls
+  rules:
+    - host: oidc.reeldev.jp
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: oidc-server
+                port: { number: 80 }

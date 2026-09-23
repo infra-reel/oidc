@@ -1,0 +1,53 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: oidc-server
+  namespace: argocd
+  annotations:
+    # ArgoCD Image Updaterに、GHCR上の新しいイメージを監視させる
+    argocd-image-updater.argoproj.io/image-list: oidc=ghcr.io/OWNER/oidc-server
+    argocd-image-updater.argoproj.io/oidc.update-strategy: digest
+    argocd-image-updater.argoproj.io/oidc.allow-tags: regexp:^edge$|^sha-[0-9a-f]+$|^v[0-9]+\.[0-9]+\.[0-9]+$
+    # ここが肝: write-backをgitではなく"argocd"にすることで、
+    # イメージ更新のたびにgitへコミットが積まれるのを防ぐ。
+    # 更新情報はArgoCD Application自体のパラメータとして保持される。
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/OWNER/oidc-reeldev.git
+    targetRevision: main
+    path: k8s/oidc
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: oidc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: oidc-console
+  namespace: argocd
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: console=ghcr.io/OWNER/oidc-console
+    argocd-image-updater.argoproj.io/console.update-strategy: digest
+    argocd-image-updater.argoproj.io/console.allow-tags: regexp:^edge$|^sha-[0-9a-f]+$|^console-v[0-9]+\.[0-9]+\.[0-9]+$
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/OWNER/oidc-reeldev.git
+    targetRevision: main
+    path: k8s/console
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: oidc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
