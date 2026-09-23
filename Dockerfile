@@ -1,9 +1,11 @@
-# 公式Dexイメージをベースに、独自のconfig.yamlを焼き込むだけの構成。
-# Dexのソース自体は改変しないため、ビルドはこれだけで完結する。
-FROM ghcr.io/dexidp/dex:v2.41.1
+FROM node:20-alpine AS deps
+WORKDIR /app
+COPY package.json ./
+RUN npm install --omit=dev
 
-COPY config/config.yaml /etc/dex/cfg/config.yaml
-
-EXPOSE 5556
-ENTRYPOINT ["/usr/local/bin/dex"]
-CMD ["serve", "/etc/dex/cfg/config.yaml"]
+FROM node:20-alpine
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+EXPOSE 3000
+CMD ["node", "server.js"]
