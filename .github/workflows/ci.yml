@@ -1,56 +1,53 @@
-name: Build and Push OIDC Server Image
-
-on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'vendor/**'
-      - 'Dockerfile'
-      - '.github/workflows/docker-build.yaml'
-  workflow_dispatch: # 手動実行も可能にする
-
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
-jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract Docker metadata (Tags & Labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=sha,format=short,prefix=sha-
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: oidc-server
+  namespace: argocd
+  annotations:
+    # ArgoCD Image Updaterに、GHCR上の新しいイメージを監視させる
+    argocd-image-updater.argoproj.io/image-list: oidc=ghcr.io/OWNER/oidc-server
+    argocd-image-updater.argoproj.io/oidc.update-strategy: digest
+    argocd-image-updater.argoproj.io/oidc.allow-tags: regexp:^latest$|^sha-[0-9a-f]+$|^v[0-9]+\.[0-9]+\.[0-9]+$
+    # ここが肝: write-backをgitではなく"argocd"にすることで、
+    # イメージ更新のたびにgitへコミットが積まれるのを防ぐ。
+    # 更新情報はArgoCD Application自体のパラメータとして保持される。
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/OWNER/oidc-reeldev.git
+    targetRevision: main
+    path: k8s/oidc
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: oidc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: oidc-console
+  namespace: argocd
+  annotations:
+    argocd-image-updater.argoproj.io/image-list: console=ghcr.io/OWNER/oidc-console
+    argocd-image-updater.argoproj.io/console.update-strategy: digest
+    argocd-image-updater.argoproj.io/console.allow-tags: regexp:^latest$|^sha-[0-9a-f]+$|^console-v[0-9]+\.[0-9]+\.[0-9]+$
+    argocd-image-updater.argoproj.io/write-back-method: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/OWNER/oidc-reeldev.git
+    targetRevision: main
+    path: k8s/console
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: oidc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
