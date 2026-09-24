@@ -30,8 +30,6 @@ staticPasswords:
   - email: "admin@reeldev.jp"
     username: "admin"
     userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
-    # bcryptハッシュに置き換えること。生成例:
-    #   htpasswd -bnBC 10 "" 'あなたのパスワード' | tr -d ':\n' | sed 's/$2y/$2a/'
-    hash: "REPLACE_WITH_BCRYPT_HASH"
+    hash: "$2a$10$kHchwGBv8k5JD5F.luYgV.996uBqk7/z/JNnEi8TXZ7ag9Kku1bPq"
 
 connectors: []
