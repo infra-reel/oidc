@@ -1,11 +1,7 @@
-FROM node:20-alpine AS deps
-WORKDIR /app
-COPY package.json ./
-RUN npm install --omit=dev
+FROM ghcr.io/dexidp/dex:v2.41.1
 
-FROM node:20-alpine
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-EXPOSE 3000
-CMD ["node", "server.js"]
+COPY config/config.yaml /etc/dex/cfg/config.yaml
+
+EXPOSE 5556
+ENTRYPOINT ["/usr/local/bin/dex"]
+CMD ["serve", "/etc/dex/cfg/config.yaml"]
