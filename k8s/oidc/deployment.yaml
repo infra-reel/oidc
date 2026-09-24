@@ -37,11 +37,45 @@ spec:
         # /vault/secrets/ 配下にファイルとして展開する
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "oidc-server"
-        vault.hashicorp.com/agent-inject-secret-config.env: "secret/data/oidc/server"
-        vault.hashicorp.com/agent-inject-template-config.env: |
+        # config.yaml自体をVaultからレンダリングする。
+        # staticClientsはVaultのclients_jsonフィールド(JSON配列)から動的に生成されるため、
+        # console管理画面からクライアントを追加/削除するとここが更新され、
+        # Vault Agentが自動で再レンダリングする(Podの再起動は別途必要)。
+        vault.hashicorp.com/agent-inject-secret-config.yaml: "secret/data/oidc/server"
+        vault.hashicorp.com/agent-inject-template-config.yaml: |
           {{- with secret "secret/data/oidc/server" -}}
-          DISCORD_CLIENT_ID={{ .Data.data.discord_client_id }}
-          DISCORD_CLIENT_SECRET={{ .Data.data.discord_client_secret }}
+          issuer: https://oidc.reeldev.jp
+
+          storage:
+            type: sqlite3
+            config:
+              file: /var/dex/data/dex.db
+
+          web:
+            http: 0.0.0.0:5556
+
+          oauth2:
+            skipApprovalScreen: true
+
+          enablePasswordDB: true
+          staticPasswords:
+            - email: "admin@reeldev.jp"
+              username: "admin"
+              userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+              hash: "$2a$10$kHchwGBv8k5JD5F.luYgV.996uBqk7/z/JNnEi8TXZ7ag9Kku1bPq"
+
+          connectors: []
+
+          staticClients:
+          {{- range (.Data.data.clients_json | parseJSON) }}
+            - id: {{ .id }}
+              name: {{ .name | toJSON }}
+              secret: {{ .secret | toJSON }}
+              redirectURIs:
+          {{- range .redirectURIs }}
+                - {{ . | toJSON }}
+          {{- end }}
+          {{- end }}
           {{- end -}}
     spec:
       # 「node worker / tier: prod」に展開する指定
@@ -61,10 +95,7 @@ spec:
             - sh
             - -c
             - |
-              set -a
-              [ -f /vault/secrets/config.env ] && . /vault/secrets/config.env
-              set +a
-              exec /usr/local/bin/dex serve /etc/dex/cfg/config.yaml
+              exec /usr/local/bin/dex serve /vault/secrets/config.yaml
           volumeMounts:
             - name: data
               mountPath: /var/dex/data
@@ -86,7 +117,7 @@ spec:
   selector:
     app: oidc-server
   ports:
-    - port: 5556
+    - port: 80
       targetPort: 5556
 ---
 apiVersion: networking.k8s.io/v1
@@ -101,6 +132,9 @@ metadata:
     acme.cert-manager.io/http01-edit-in-place: "true"
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts: ["oidc.reeldev.jp"]
+      secretName: oidc-tls
   rules:
     - host: oidc.reeldev.jp
       http:
@@ -110,9 +144,4 @@ spec:
             backend:
               service:
                 name: oidc-server
-                port:
-                  number: 5556
-  tls:
-    - hosts:
-        - oidc.reeldev.jp
-      secretName: oidc-tls
+                port: { number: 80 }
