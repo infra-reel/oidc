@@ -172,7 +172,8 @@ async function restartOidcServer() {
   );
   const host = process.env.KUBERNETES_SERVICE_HOST;
   const port = process.env.KUBERNETES_SERVICE_PORT || "443";
-  const url = `https://${host}:${port}/apis/apps/v1/namespaces/oidc/deployments/oidc-server`;
+  const hostForUrl = host.includes(":") ? `[${host}]` : host; // IPv6対応
+  const url = `https://${hostForUrl}:${port}/apis/apps/v1/namespaces/oidc/deployments/oidc-server`;
   const patch = {
     spec: {
       template: {
