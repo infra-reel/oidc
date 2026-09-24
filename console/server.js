@@ -3,6 +3,7 @@ const session = require("express-session");
 const crypto = require("crypto");
 
 const app = express();
+app.set("trust proxy", 1); // nginx ingressの後ろで動くため、X-Forwarded-Protoを信頼してsecure cookieを機能させる
 app.use(express.json());
 app.use(express.static("public"));
 app.use(
