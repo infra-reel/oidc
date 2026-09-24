@@ -23,4 +23,15 @@ staticClients:
 
 # 認証方法(社内パスワードDB / 外部IdP連携等)は用途が固まり次第ここに追加する。
 # 管理画面(console)のDiscordログインとは独立した設定。
+# Dexは最低1つconnectorが無いと起動できないため、仮でローカルパスワードログインを有効にしている。
+# 本番の認証方法が決まったらstaticPasswordsを削除し、connectorsに置き換えること。
+enablePasswordDB: true
+staticPasswords:
+  - email: "admin@reeldev.jp"
+    username: "admin"
+    userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
+    # bcryptハッシュに置き換えること。生成例:
+    #   htpasswd -bnBC 10 "" 'あなたのパスワード' | tr -d ':\n' | sed 's/$2y/$2a/'
+    hash: "REPLACE_WITH_BCRYPT_HASH"
+
 connectors: []
