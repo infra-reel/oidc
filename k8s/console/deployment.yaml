@@ -70,9 +70,8 @@ metadata:
   namespace: oidc
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    cert-manager.io/issue-temporary-certificate: "true"
-    acme.cert-manager.io/http01-edit-in-place: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true" # SSL強制にしてHTTPSを統一
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 spec:
   ingressClassName: nginx
   tls:
@@ -89,4 +88,4 @@ spec:
               service:
                 name: oidc-console
                 port:
-                  number: 3000
+                  number: 80 # Serviceのport: 80経由でtargetPort: 3000へ行く
