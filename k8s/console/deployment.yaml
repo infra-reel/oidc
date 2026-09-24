@@ -60,8 +60,8 @@ spec:
     app: oidc-console
   ports:
     - name: http
-      port: 80
-      targetPort: http
+      port: 3000        # ポートを3000に統一
+      targetPort: 3000  # Podの3000に直接流す
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -70,8 +70,7 @@ metadata:
   namespace: oidc
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/ssl-redirect: "true" # SSL強制にしてHTTPSを統一
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
 spec:
   ingressClassName: nginx
   tls:
@@ -88,4 +87,4 @@ spec:
               service:
                 name: oidc-console
                 port:
-                  number: 80 # Serviceのport: 80経由でtargetPort: 3000へ行く
+                  number: 3000 # Serviceの3000番へ直接指定
