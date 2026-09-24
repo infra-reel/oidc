@@ -1,0 +1,25 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: oidc-console-restart-server
+  namespace: oidc
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["oidc-server"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: oidc-console-restart-server
+  namespace: oidc
+subjects:
+  # consoleのDeploymentはserviceAccountNameを指定していないため"default"を使っている
+  - kind: ServiceAccount
+    name: default
+    namespace: oidc
+roleRef:
+  kind: Role
+  name: oidc-console-restart-server
+  apiGroup: rbac.authorization.k8s.io
