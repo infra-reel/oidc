@@ -3,10 +3,6 @@ const session = require("express-session");
 const crypto = require("crypto");
 
 const app = express();
-
-// ★ 追記: リバースプロキシ(NGINX Ingress/Cloudflare)からの X-Forwarded-Proto ヘッダーを信頼する
-app.set("trust proxy", 1);
-
 app.use(express.json());
 app.use(express.static("public"));
 app.use(
@@ -118,6 +114,126 @@ app.post("/api/links", requireAdmin, (req, res) => {
 app.delete("/api/links/:id", requireAdmin, (req, res) => {
   links = links.filter((l) => l.id !== req.params.id);
   res.json({ ok: true });
+});
+
+// --- OIDCクライアント管理 ---
+// Vaultのsecret/data/oidc/serverにclients_json(配列)として保存し、
+// oidc-server側のVault Agentがconfig.yamlとして自動レンダリングする。
+// レンダリング後にoidc-serverを再起動させることで変更を反映する。
+const fs = require("fs");
+const VAULT_ADDR = process.env.VAULT_ADDR || "http://vault.mgmt-vault.svc:8200";
+const VAULT_SECRET_PATH = "secret/data/oidc/server";
+
+function readVaultToken() {
+  return fs.readFileSync("/vault/secrets/token", "utf8").trim();
+}
+
+async function vaultReadSecret() {
+  const res = await fetch(`${VAULT_ADDR}/v1/${VAULT_SECRET_PATH}`, {
+    headers: { "X-Vault-Token": readVaultToken() },
+  });
+  if (!res.ok) throw new Error(`vault read failed: ${res.status}`);
+  const body = await res.json();
+  return body.data.data || {};
+}
+
+async function vaultWriteSecret(mergedData) {
+  const res = await fetch(`${VAULT_ADDR}/v1/${VAULT_SECRET_PATH}`, {
+    method: "POST",
+    headers: {
+      "X-Vault-Token": readVaultToken(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ data: mergedData }),
+  });
+  if (!res.ok) throw new Error(`vault write failed: ${res.status}`);
+}
+
+async function getClients() {
+  const data = await vaultReadSecret();
+  try {
+    return JSON.parse(data.clients_json || "[]");
+  } catch {
+    return [];
+  }
+}
+
+async function saveClients(clients) {
+  const current = await vaultReadSecret();
+  await vaultWriteSecret({ ...current, clients_json: JSON.stringify(clients) });
+}
+
+// k8sの in-cluster API を使って oidc-server Deployment をローリング再起動する
+async function restartOidcServer() {
+  const token = fs.readFileSync(
+    "/var/run/secrets/kubernetes.io/serviceaccount/token",
+    "utf8"
+  );
+  const host = process.env.KUBERNETES_SERVICE_HOST;
+  const port = process.env.KUBERNETES_SERVICE_PORT || "443";
+  const url = `https://${host}:${port}/apis/apps/v1/namespaces/oidc/deployments/oidc-server`;
+  const patch = {
+    spec: {
+      template: {
+        metadata: {
+          annotations: { "reeldev.jp/restartedAt": new Date().toISOString() },
+        },
+      },
+    },
+  };
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/strategic-merge-patch+json",
+    },
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error(`k8s restart failed: ${res.status} ${await res.text()}`);
+}
+
+app.get("/api/oidc/clients", requireAdmin, async (_req, res) => {
+  try {
+    res.json(await getClients());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "failed to read clients" });
+  }
+});
+
+app.post("/api/oidc/clients", requireAdmin, async (req, res) => {
+  try {
+    const { name, redirectURIs } = req.body;
+    if (!name || !Array.isArray(redirectURIs) || redirectURIs.length === 0) {
+      return res.status(400).json({ error: "name and redirectURIs are required" });
+    }
+    const id = name.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "");
+    const secret = crypto.randomBytes(32).toString("hex");
+    const clients = await getClients();
+    if (clients.some((c) => c.id === id)) {
+      return res.status(409).json({ error: `client id "${id}" already exists` });
+    }
+    const client = { id, name, secret, redirectURIs };
+    clients.push(client);
+    await saveClients(clients);
+    await restartOidcServer();
+    res.status(201).json(client); // secretはこの1回しか平文で返さない
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "failed to create client" });
+  }
+});
+
+app.delete("/api/oidc/clients/:id", requireAdmin, async (req, res) => {
+  try {
+    const clients = (await getClients()).filter((c) => c.id !== req.params.id);
+    await saveClients(clients);
+    await restartOidcServer();
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "failed to delete client" });
+  }
 });
 
 const port = process.env.PORT || 3000;
