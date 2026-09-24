@@ -27,16 +27,22 @@ spec:
           ADMIN_DISCORD_IDS={{ .Data.data.admin_discord_ids }}
           SESSION_SECRET={{ .Data.data.session_secret }}
           {{- end -}}
+        # OIDCクライアント管理機能がsecret/data/oidc/serverを直接読み書きするための生トークン
+        vault.hashicorp.com/agent-inject-token: "true"
     spec:
       nodeSelector:
         role: worker
         tier: prod
       containers:
         - name: console
-          image: ghcr.io/infra-reel/oidc-console:latest # ArgoCD Image Updaterが自動更新
+          image: ghcr.io/infra-reel/oidc-console:latest   # ArgoCD Image Updaterが自動更新
           ports:
-            - name: http
-              containerPort: 3000
+            - containerPort: 3000
+          env:
+            - name: VAULT_ADDR
+              value: "http://vault.mgmt-vault.svc:8200"
+            - name: NODE_EXTRA_CA_CERTS
+              value: "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
           command:
             - sh
             - -c
@@ -46,9 +52,7 @@ spec:
               set +a
               exec node server.js
           readinessProbe:
-            httpGet:
-              path: /api/health
-              port: http
+            httpGet: { path: /api/health, port: 3000 }
 ---
 apiVersion: v1
 kind: Service
@@ -59,7 +63,7 @@ spec:
   selector:
     app: oidc-console
   ports:
-    - port: 3000
+    - port: 80
       targetPort: 3000
 ---
 apiVersion: networking.k8s.io/v1
@@ -74,6 +78,9 @@ metadata:
     acme.cert-manager.io/http01-edit-in-place: "true"
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts: ["console.reeldev.jp"]
+      secretName: oidc-console-tls
   rules:
     - host: console.reeldev.jp
       http:
@@ -83,9 +90,4 @@ spec:
             backend:
               service:
                 name: oidc-console
-                port:
-                  number: 3000
-  tls:
-    - hosts:
-        - console.reeldev.jp
-      secretName: oidc-console-tls
+                port: { number: 80 }
