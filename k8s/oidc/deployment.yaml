@@ -42,7 +42,6 @@ spec:
           {{- with secret "secret/data/oidc/server" -}}
           DISCORD_CLIENT_ID={{ .Data.data.discord_client_id }}
           DISCORD_CLIENT_SECRET={{ .Data.data.discord_client_secret }}
-          OIDC_SIGNING_KEY={{ .Data.data.signing_key }}
           {{- end -}}
     spec:
       # 「node worker / tier: prod」に展開する指定
