@@ -89,4 +89,4 @@ spec:
               service:
                 name: oidc-console
                 port:
-                  number: 80
+                  number: 3000
