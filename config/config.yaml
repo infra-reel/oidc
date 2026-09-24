@@ -19,7 +19,7 @@ staticClients:
     name: "Example App"
     secretEnv: EXAMPLE_APP_CLIENT_SECRET
     redirectURIs:
-      - "https://example.reeldev.jp/callback"
+      - "https://oidc.reeldev.jp/callback"
 
 # 認証方法(社内パスワードDB / 外部IdP連携等)は用途が固まり次第ここに追加する。
 # 管理画面(console)のDiscordログインとは独立した設定。
