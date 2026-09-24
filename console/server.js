@@ -3,6 +3,10 @@ const session = require("express-session");
 const crypto = require("crypto");
 
 const app = express();
+
+// ★ 追記: リバースプロキシ(NGINX Ingress/Cloudflare)からの X-Forwarded-Proto ヘッダーを信頼する
+app.set("trust proxy", 1);
+
 app.use(express.json());
 app.use(express.static("public"));
 app.use(
