@@ -5,15 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>reeldev console</title>
 <style>
-  :root { --bg:#111; --fg:#eee; --accent:#5865f2; }
+  :root { --bg:#111; --fg:#eee; --card:#1b1b1b; --accent:#5865f2; --danger:#e04b4b; }
   * { box-sizing: border-box; }
   body { margin:0; font-family: system-ui, sans-serif; background:var(--bg); color:var(--fg); }
-  nav { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; }
+  nav { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; border-bottom:1px solid #222; }
   .menu-btn { background:none; border:none; color:var(--fg); font-size:22px; cursor:pointer; }
-  main { padding:16px; }
+  main { max-width:720px; margin:0 auto; padding:24px 16px 80px; }
+  section { margin-bottom:40px; }
+  h2 { font-size:16px; opacity:.8; margin-bottom:12px; }
+  .card { background:var(--card); border-radius:8px; padding:14px 16px; margin-bottom:10px; }
+  .card .meta { font-size:12px; opacity:.5; margin-top:4px; }
+  .card-row { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; }
+  button { cursor:pointer; border:none; border-radius:6px; padding:8px 14px; font-size:14px; }
+  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-danger { background:transparent; color:var(--danger); padding:4px 8px; }
+  .btn-danger:hover { background:rgba(224,75,75,.15); }
+  form { display:flex; flex-direction:column; gap:8px; margin-bottom:16px; }
+  input, textarea { background:#0d0d0d; border:1px solid #333; color:var(--fg); border-radius:6px; padding:8px 10px; font-size:14px; }
+  a.link-item { color:var(--accent); }
   footer { padding:16px; opacity:.6; font-size:12px; }
+  .empty { opacity:.5; font-size:14px; }
 
-  /* 右からスライドインするドロワー */
   #drawer {
     position:fixed; top:0; right:0; height:100%; width:70%; max-width:280px;
     background:#1b1b1b; transform:translateX(100%); transition:transform .25s ease;
@@ -36,13 +48,25 @@
 
   <div id="overlay"></div>
   <div id="drawer">
-    <a href="/">お知らせ</a>
-    <a href="/#links">リンク</a>
-    <a href="/api/auth/login">Discordでログイン</a>
+    <a href="#announcements">お知らせ</a>
+    <a href="#links">リンク</a>
+    <a id="authLink" href="/api/auth/login">Discordでログイン</a>
   </div>
 
-  <main id="app">
-    <p>Loading...</p>
+  <main>
+    <p id="whoami" class="empty">確認中...</p>
+
+    <section id="announcements">
+      <h2>お知らせ</h2>
+      <div id="announcementForm"></div>
+      <div id="announcementList" class="empty">読み込み中...</div>
+    </section>
+
+    <section id="links">
+      <h2>リンク</h2>
+      <div id="linkForm"></div>
+      <div id="linkList" class="empty">読み込み中...</div>
+    </section>
   </main>
 
   <footer>© reel hosiduki 2026 all rights reserved</footer>
@@ -51,19 +75,153 @@
     const menuBtn = document.getElementById("menuBtn");
     const drawer = document.getElementById("drawer");
     const overlay = document.getElementById("overlay");
-    function toggle(open) {
+    function toggleDrawer(open) {
       drawer.classList.toggle("open", open);
       overlay.classList.toggle("open", open);
     }
-    menuBtn.addEventListener("click", () => toggle(!drawer.classList.contains("open")));
-    overlay.addEventListener("click", () => toggle(false));
+    menuBtn.addEventListener("click", () => toggleDrawer(!drawer.classList.contains("open")));
+    overlay.addEventListener("click", () => toggleDrawer(false));
 
-    // 最低限の疎通確認。実際の一覧表示・編集UIは別途実装する。
-    fetch("/api/auth/me").then(r => r.json()).then(({ user, isAdmin }) => {
-      document.getElementById("app").innerHTML = user
-        ? `<p>${user.username} としてログイン中 ${isAdmin ? "(管理人)" : ""}</p>`
-        : `<p><a href="/api/auth/login" style="color:var(--accent)">Discordでログイン</a></p>`;
-    });
+    let isAdmin = false;
+
+    async function api(path, opts) {
+      const res = await fetch(path, {
+        headers: { "Content-Type": "application/json" },
+        ...opts,
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+      return res.status === 204 ? null : res.json();
+    }
+
+    function fmtDate(iso) {
+      if (!iso) return "";
+      return new Date(iso).toLocaleString("ja-JP");
+    }
+
+    async function loadWhoami() {
+      const { user, isAdmin: admin } = await api("/api/auth/me");
+      isAdmin = admin;
+      const el = document.getElementById("whoami");
+      const authLink = document.getElementById("authLink");
+      if (user) {
+        el.textContent = `${user.username} としてログイン中${admin ? " (管理人)" : ""}`;
+        authLink.textContent = "ログアウト";
+        authLink.href = "#";
+        authLink.onclick = async (e) => {
+          e.preventDefault();
+          await fetch("/api/auth/logout", { method: "POST" });
+          location.reload();
+        };
+      } else {
+        el.textContent = "";
+        authLink.textContent = "Discordでログイン";
+        authLink.href = "/api/auth/login";
+      }
+    }
+
+    async function loadAnnouncements() {
+      const items = await api("/api/announcements");
+      const listEl = document.getElementById("announcementList");
+      listEl.innerHTML = "";
+      if (!items.length) {
+        listEl.innerHTML = '<p class="empty">お知らせはまだありません</p>';
+      }
+      for (const a of items) {
+        const div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = `
+          <div class="card-row">
+            <div>
+              <div>${escapeHtml(a.title || "")}</div>
+              <div>${escapeHtml(a.body || "")}</div>
+              <div class="meta">${fmtDate(a.createdAt)}</div>
+            </div>
+            ${isAdmin ? `<button class="btn-danger" data-id="${a.id}">削除</button>` : ""}
+          </div>`;
+        if (isAdmin) {
+          div.querySelector("button").onclick = async () => {
+            await api(`/api/announcements/${a.id}`, { method: "DELETE" });
+            loadAnnouncements();
+          };
+        }
+        listEl.appendChild(div);
+      }
+
+      const formEl = document.getElementById("announcementForm");
+      formEl.innerHTML = isAdmin ? `
+        <form id="newAnnouncement">
+          <input name="title" placeholder="タイトル" required />
+          <textarea name="body" placeholder="内容" rows="3" required></textarea>
+          <button class="btn-primary" type="submit">お知らせを追加</button>
+        </form>` : "";
+      if (isAdmin) {
+        document.getElementById("newAnnouncement").onsubmit = async (e) => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          await api("/api/announcements", {
+            method: "POST",
+            body: JSON.stringify({ title: fd.get("title"), body: fd.get("body") }),
+          });
+          e.target.reset();
+          loadAnnouncements();
+        };
+      }
+    }
+
+    async function loadLinks() {
+      const items = await api("/api/links");
+      const listEl = document.getElementById("linkList");
+      listEl.innerHTML = "";
+      if (!items.length) {
+        listEl.innerHTML = '<p class="empty">リンクはまだありません</p>';
+      }
+      for (const l of items) {
+        const div = document.createElement("div");
+        div.className = "card card-row";
+        div.innerHTML = `
+          <a class="link-item" href="${escapeHtml(l.url || "#")}" target="_blank" rel="noopener">${escapeHtml(l.title || l.url || "")}</a>
+          ${isAdmin ? `<button class="btn-danger" data-id="${l.id}">削除</button>` : ""}`;
+        if (isAdmin) {
+          div.querySelector("button").onclick = async () => {
+            await api(`/api/links/${l.id}`, { method: "DELETE" });
+            loadLinks();
+          };
+        }
+        listEl.appendChild(div);
+      }
+
+      const formEl = document.getElementById("linkForm");
+      formEl.innerHTML = isAdmin ? `
+        <form id="newLink">
+          <input name="title" placeholder="表示名" required />
+          <input name="url" placeholder="https://..." required />
+          <button class="btn-primary" type="submit">リンクを追加</button>
+        </form>` : "";
+      if (isAdmin) {
+        document.getElementById("newLink").onsubmit = async (e) => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          await api("/api/links", {
+            method: "POST",
+            body: JSON.stringify({ title: fd.get("title"), url: fd.get("url") }),
+          });
+          e.target.reset();
+          loadLinks();
+        };
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+      }[c]));
+    }
+
+    (async () => {
+      await loadWhoami();
+      await loadAnnouncements();
+      await loadLinks();
+    })();
   </script>
 </body>
 </html>
