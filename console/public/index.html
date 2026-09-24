@@ -48,6 +48,7 @@
 
   <div id="overlay"></div>
   <div id="drawer">
+    <a href="#oidc-clients">OIDCクライアント</a>
     <a href="#announcements">お知らせ</a>
     <a href="#links">リンク</a>
     <a id="authLink" href="/api/auth/login">Discordでログイン</a>
@@ -55,6 +56,13 @@
 
   <main>
     <p id="whoami" class="empty">確認中...</p>
+
+    <section id="oidc-clients">
+      <h2>OIDCクライアント</h2>
+      <p class="empty">reeldevの各サービスをこのOIDCプロバイダにログイン連携させるための設定です。</p>
+      <div id="clientForm"></div>
+      <div id="clientList" class="empty">読み込み中...</div>
+    </section>
 
     <section id="announcements">
       <h2>お知らせ</h2>
@@ -211,6 +219,65 @@
       }
     }
 
+    async function loadClients() {
+      if (!isAdmin) {
+        document.getElementById("clientList").innerHTML = '<p class="empty">管理人としてログインすると表示されます</p>';
+        document.getElementById("clientForm").innerHTML = "";
+        return;
+      }
+      const items = await api("/api/oidc/clients");
+      const listEl = document.getElementById("clientList");
+      listEl.innerHTML = "";
+      if (!items.length) {
+        listEl.innerHTML = '<p class="empty">クライアントはまだありません</p>';
+      }
+      for (const c of items) {
+        const div = document.createElement("div");
+        div.className = "card";
+        div.innerHTML = `
+          <div class="card-row">
+            <div>
+              <div><strong>${escapeHtml(c.name)}</strong> <span class="meta">(id: ${escapeHtml(c.id)})</span></div>
+              <div class="meta">${(c.redirectURIs || []).map(escapeHtml).join(", ")}</div>
+            </div>
+            <button class="btn-danger" data-id="${c.id}">削除</button>
+          </div>`;
+        div.querySelector("button").onclick = async () => {
+          if (!confirm(`"${c.name}" を削除しますか？(oidc-serverが再起動します)`)) return;
+          await api(`/api/oidc/clients/${c.id}`, { method: "DELETE" });
+          loadClients();
+        };
+        listEl.appendChild(div);
+      }
+
+      document.getElementById("clientForm").innerHTML = `
+        <form id="newClient">
+          <input name="name" placeholder="サービス名 (例: Outline)" required />
+          <input name="redirectURI" placeholder="リダイレクトURI (https://...)" required />
+          <button class="btn-primary" type="submit">クライアントを追加</button>
+        </form>
+        <div id="newClientResult"></div>`;
+      document.getElementById("newClient").onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const created = await api("/api/oidc/clients", {
+          method: "POST",
+          body: JSON.stringify({
+            name: fd.get("name"),
+            redirectURIs: [fd.get("redirectURI")],
+          }),
+        });
+        e.target.reset();
+        document.getElementById("newClientResult").innerHTML = `
+          <div class="card">
+            <p>作成しました。クライアントシークレットは今だけ表示されます。控えてください:</p>
+            <p><code>client_id: ${escapeHtml(created.id)}</code></p>
+            <p><code>client_secret: ${escapeHtml(created.secret)}</code></p>
+          </div>`;
+        loadClients();
+      };
+    }
+
     function escapeHtml(s) {
       return String(s).replace(/[&<>"']/g, (c) => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -219,6 +286,7 @@
 
     (async () => {
       await loadWhoami();
+      await loadClients();
       await loadAnnouncements();
       await loadLinks();
     })();
