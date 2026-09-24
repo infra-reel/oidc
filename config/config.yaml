@@ -3,7 +3,6 @@ issuer: https://oidc.reeldev.jp
 storage:
   type: sqlite3
   config:
-    # k8sのPVC(NFS)をマウントするパスと一致させる
     file: /var/dex/data/dex.db
 
 web:
@@ -12,24 +11,20 @@ web:
 oauth2:
   skipApprovalScreen: true
 
-# reeldevの各サービスをOIDCクライアントとして登録する場所。
-# secretEnvはVault Agent Injectorが展開する環境変数名を指定する。
+# Outline Wiki を OIDC クライアントとして登録
 staticClients:
-  - id: reeldev-example-app
-    name: "Example App"
-    secretEnv: EXAMPLE_APP_CLIENT_SECRET
+  - id: outline
+    name: "Outline Wiki"
+    secret: 96a5ea7649630b1b67ee46ad760613916511435d9c66c052b14186e7402da962
     redirectURIs:
-      - "https://oidc.reeldev.jp/callback"
+      - "https://wiki.reeldev.jp/auth/oidc.callback"
 
-# 認証方法(社内パスワードDB / 外部IdP連携等)は用途が固まり次第ここに追加する。
-# 管理画面(console)のDiscordログインとは独立した設定。
-# Dexは最低1つconnectorが無いと起動できないため、仮でローカルパスワードログインを有効にしている。
-# 本番の認証方法が決まったらstaticPasswordsを削除し、connectorsに置き換えること。
-enablePasswordDB: true
-staticPasswords:
-  - email: "admin@reeldev.jp"
-    username: "admin"
-    userID: "08a8684b-db88-4b73-90a9-3cd1661f5466"
-    hash: "$2a$10$kHchwGBv8k5JD5F.luYgV.996uBqk7/z/JNnEi8TXZ7ag9Kku1bPq"
-
-connectors: []
+# Dexがユーザー認証に利用する外部IdP（Discord）の設定
+connectors:
+  - type: discord
+    id: discord
+    name: Discord
+    config:
+      clientID: $DISCORD_CLIENT_ID
+      clientSecret: $DISCORD_CLIENT_SECRET
+      redirectURI: https://oidc.reeldev.jp/callback
