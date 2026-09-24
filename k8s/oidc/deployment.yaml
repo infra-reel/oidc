@@ -96,13 +96,13 @@ metadata:
   namespace: oidc
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
-    cert-manager.io/issue-temporary-certificate: "true"
-    acme.cert-manager.io/http01-edit-in-place: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true" # SSL必須
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: ["oidc.reeldev.jp"]
+    - hosts:
+        - oidc.reeldev.jp
       secretName: oidc-tls
   rules:
     - host: oidc.reeldev.jp
@@ -113,4 +113,5 @@ spec:
             backend:
               service:
                 name: oidc-server
-                port: { number: 80 }
+                port:
+                  number: 80 # Serviceのport: 80経由でtargetPort: 5556へ行く
