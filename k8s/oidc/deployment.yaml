@@ -86,7 +86,7 @@ spec:
   selector:
     app: oidc-server
   ports:
-    - port: 80
+    - port: 5556
       targetPort: 5556
 ---
 apiVersion: networking.k8s.io/v1
@@ -96,14 +96,11 @@ metadata:
   namespace: oidc
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/ssl-redirect: "true" # SSL必須
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    cert-manager.io/issue-temporary-certificate: "true"
+    acme.cert-manager.io/http01-edit-in-place: "true"
 spec:
   ingressClassName: nginx
-  tls:
-    - hosts:
-        - oidc.reeldev.jp
-      secretName: oidc-tls
   rules:
     - host: oidc.reeldev.jp
       http:
@@ -114,4 +111,8 @@ spec:
               service:
                 name: oidc-server
                 port:
-                  number: 80 # Serviceのport: 80経由でtargetPort: 5556へ行く
+                  number: 5556
+  tls:
+    - hosts:
+        - oidc.reeldev.jp
+      secretName: oidc-tls
