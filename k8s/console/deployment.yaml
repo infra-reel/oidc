@@ -33,9 +33,10 @@ spec:
         tier: prod
       containers:
         - name: console
-          image: ghcr.io/infra-reel/oidc-console:latest   # ArgoCD Image Updaterが自動更新
+          image: ghcr.io/infra-reel/oidc-console:latest # ArgoCD Image Updaterが自動更新
           ports:
-            - containerPort: 3000
+            - name: http
+              containerPort: 3000
           command:
             - sh
             - -c
@@ -45,7 +46,9 @@ spec:
               set +a
               exec node server.js
           readinessProbe:
-            httpGet: { path: /api/health, port: 3000 }
+            httpGet:
+              path: /api/health
+              port: http
 ---
 apiVersion: v1
 kind: Service
@@ -56,8 +59,9 @@ spec:
   selector:
     app: oidc-console
   ports:
-    - port: 80
-      targetPort: 3000
+    - name: http
+      port: 80
+      targetPort: http
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -66,13 +70,14 @@ metadata:
   namespace: oidc
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
     cert-manager.io/issue-temporary-certificate: "true"
     acme.cert-manager.io/http01-edit-in-place: "true"
 spec:
   ingressClassName: nginx
   tls:
-    - hosts: ["console.reeldev.jp"]
+    - hosts:
+        - console.reeldev.jp
       secretName: oidc-console-tls
   rules:
     - host: console.reeldev.jp
@@ -83,4 +88,5 @@ spec:
             backend:
               service:
                 name: oidc-console
-                port: { number: 80 }
+                port:
+                  number: 80
